@@ -1,9 +1,10 @@
 <?php
 
-function generateFunctionCallGraph($filename)
+function generateFunctionCallGraph($filename): string
 {
     $code = file_get_contents($filename);
-    $tokens = token_get_all($code);
+//    $tokens = token_get_all($code);
+    $tokens = executeFunctionWithMemoryLimit('token_get_all', $code, 10);
 
     $functionCalls = array();
 
@@ -39,4 +40,31 @@ function generateFunctionCallGraph($filename)
 function formatFunctionName($function)
 {
     return str_replace('\\', '\\\\', $function);
+}
+
+function executeFunctionWithMemoryLimit(string $functionName, $argument, int $limit)
+{
+    $currentLimit = ini_get('memory_limit');
+    $newLimit = $currentLimit;
+
+    do {
+
+        register_shutdown_function($functionName, $argument);
+
+        $newLimit = (int)$newLimit + $limit . 'M';
+        ini_set('memory_limit', $newLimit);
+
+    } while (strpos(
+        error_get_last()['message'] ?? '',
+        'Allowed memory size') !== false);
+
+//    echo 'Выделил памяти' . ini_get('memory_limit');
+//    print_r('Ошибка последняя:' . error_get_last()['message'] ?? '');
+
+    $result = $functionName($argument);
+
+    // Восстановление исходного лимита памяти
+    ini_set('memory_limit', $currentLimit);
+
+    return $result;
 }

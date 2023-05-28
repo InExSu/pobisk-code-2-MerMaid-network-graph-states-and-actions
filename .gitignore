@@ -1,0 +1,10 @@
+/webHookURL.txt
+/settings.php
+/*.txt
+/popov-php-bitrix24-zg-20220603-a1df757bd724.json
+/table*
+/~$*.*
+
+_Versions/
+vendor/
+.idea/
