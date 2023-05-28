@@ -1,7 +1,7 @@
 <?php
 
 function getAllPhpFiles($dir)
-Х
+{
     $phpFiles = [];
 
     $iterator = new RecursiveIteratorIterator(
