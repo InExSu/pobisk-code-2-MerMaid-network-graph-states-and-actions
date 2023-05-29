@@ -34,7 +34,10 @@ function generateFunctionCallGraph($filename): string
         }
     }
 
-    return $mermaidCode;
+    return str_replace('graph_php LR;',
+        'graph LR;', implode("\n",
+            array_unique(explode("\n",
+                optimizeMermaidCode($mermaidCode, '_php')))));
 }
 
 function formatFunctionName($function)
@@ -67,4 +70,17 @@ function executeFunctionWithMemoryLimit(string $functionName, $argument, int $li
     ini_set('memory_limit', $currentLimit);
 
     return $result;
+}
+
+function optimizeMermaidCode(string $mermaidCode, string $suffix): string
+{
+    $keywords = ['call', 'class', 'click', 'end', 'graph', 'link', 'note', 'participant', 'style', 'subgraph', 'title'];
+
+    foreach ($keywords as $keyword) {
+        $pattern = "/(?<!\\w)$keyword(?!\\w)/"; // Match the keyword only when it's not part of a larger word
+
+        $mermaidCode = preg_replace($pattern, $keyword . $suffix, $mermaidCode);
+    }
+
+    return $mermaidCode;
 }
