@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * Код для тестов
+ */
+
 declare(strict_types=1);
 
 function state_1()
