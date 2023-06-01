@@ -1,9 +1,10 @@
 <?php
-
+ /**
+  * Промежуточная версия, новая в code2Mermaid.php
+  */
 function generateFunctionCallGraph($filename): string
 {
     $code = file_get_contents($filename);
-//    $tokens = token_get_all($code);
     $tokens = executeFunctionWithMemoryLimit('token_get_all', $code, 10);
 
     $functionCalls = array();
@@ -24,7 +25,7 @@ function generateFunctionCallGraph($filename): string
         }
     }
 
-    $mermaidCode = "graph LR;\n";
+    $mermaidCode = '```mermaid' . PHP_EOL. "graph LR;\n";
 
     foreach ($functionCalls as $function => $calls) {
         $mermaidCode .= "  " . formatFunctionName($function) . "\n";
