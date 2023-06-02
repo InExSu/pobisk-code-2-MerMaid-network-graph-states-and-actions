@@ -1,79 +1,200 @@
 <?php
+require 'vendor/autoload.php'; // Путь к установленной библиотеке php-parser
+
+use PhpParser\Node\Stmt;
+use PhpParser\ParserFactory;
 
 /**
- * Код php в код диаграммы MerMaid
- * Начиная с $functionName строит диаграмму связей вызовов функций
- * имена функций, начинающиеся с state - помещать в узлы графа
- * имена функций, не начинающиеся с state - помещать на рёбра графа
- *
- * @param string $phpCode = <<<PHP
- * function state_a() {b();}
- * function b() {state_c();}
- * function state_c() {// ...}
- * PHP;
- * @param string $functionName = 'state_a';
- * @return string 'state_a -- b --> state_c'
+ * @param $phpCode
+ * @return Stmt[]|null
  */
-function codePHP_2_Mermaid(string $phpCode, string $functionName): string
+function phpCode2AST($phpCode)
 {
-    // Извлечь имена функций из кода
-    preg_match_all('/function\s+(\w+)\s*\(/', $phpCode, $matches);
-    $functionNames = $matches[1];
+    $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
+    return $parser->parse($phpCode);
+}
 
-    // Проверить, существует ли указанная функция
-    if (!in_array($functionName, $functionNames)) {
-        return '';
-    }
+/**
+ * @param $ast
+ * @return string
+ */
+function ast2Mermaid($ast): string
+{
+    $mermaidCode = "Flowchart TB;\n";
 
-    // Фильтровать имена функций в зависимости от префикса
-    $nodes = [];
-    $edges = [];
-    foreach ($functionNames as $name) {
-        if (strpos($name, 'state') === 0) {
-            $nodes[] = $name;
-        } else {
-            $edges[] = $name;
+    foreach ($ast as $node) {
+        if ($node instanceof PhpParser\Node\Stmt\Function_) {
+            $functionName = $node->name->name;
+            $stmts = $node->stmts;
+            $mermaidCode .= "    $functionName\n";
+
+            foreach ($stmts as $stmt) {
+                if ($stmt instanceof PhpParser\Node\Stmt\Expression) {
+                    $expr = $stmt->expr;
+                    if ($expr instanceof PhpParser\Node\Expr\FuncCall) {
+                        $funcName = $expr->name->parts[0];
+                        $mermaidCode .= "    $functionName --> $funcName\n";
+                    }
+                }
+            }
         }
     }
 
-    // Построить строку диаграммы Mermaid
-    $mermaidDiagram = "{$functionName} -- ";
-
-    // Получить индекс начальной функции
-    $startIndex = array_search($functionName, $nodes);
-
-    // Добавить рёбра в диаграмму
-    for ($i = $startIndex; $i < count($nodes) - 1; $i++) {
-        $mermaidDiagram .= "{$edges[$i]} --> {$nodes[$i + 1]}";
-    }
-
-    // Вернуть окончательную строку диаграммы Mermaid
-    return $mermaidDiagram;
+    return $mermaidCode;
 }
 
-function codePHP_2_Mermaid_Test()
+/**
+ * Mermaid элементы, начинающимся с $word сделать в кружках.
+ *
+ * @param string $inputString = 'state_1 --> func_1
+ * state_1 --> func2
+ * func_1 --> stateAnySymbols
+ * func2 --> stateAnySymbols';
+ * @param string $word = 'state';
+ * @param string $separator = "-->";
+ * @return string = 'state_1((state_1)) --> func_1
+ * state_1 --> func2
+ * func_1 --> stateAnySymbols((stateAnySymbols))
+ * func2 --> stateAnySymbols';
+ */
+function mermaidElementsCircle(string $inputString, string $word = 'state', string $separator = '-->'): string
+{
+    // TODO рефакторинг!
+    if (strpos($inputString, "\n") !== false) {
+
+        $lines = explode("\n", $inputString);
+        $outputLines = [];
+
+        foreach ($lines as $line) {
+            if (strpos($line, $word) !== false) {
+                if (strpos($line, $separator) !== false) {
+
+                    $outputLines[] = mermaidStringElementDecor($line);
+                } else {
+                    $outputLines[] = $line;
+                }
+            } else {
+                $outputLines[] = $line;
+            }
+        }
+
+        return implode("\n", $outputLines);
+    }
+    return $inputString;
+}
+
+/**
+ * Mermaid строка - обрамляет элемент, если он начинается с $word
+ *
+ * @param string $string = 'state_1 --> func_1';
+ * @param string $word = 'state'
+ * @param string $separator = '-->'
+ * @param string $left = '(('
+ * @param string $right = '))'
+ * @return string = 'state_1((state_1)) --> func_1';
+ */
+function mermaidStringElementDecor(string $string,
+                                   string $word = 'state',
+                                   string $separator = '-->',
+                                   string $left = '((',
+                                   string $right = '))'): string
 {
 
-    $functionName = 'state_a';
-    // Тестовый код
-    $phpCode = <<<PHP
-function state_a() {b();}
-function b() {state_c();}
-function state_c() {// ...}
+    $elements = explode($separator, $string);
+    $decoratedElements = [];
+
+    foreach ($elements as $element) {
+        $trimmedElement = trim($element);
+
+        if (strpos($trimmedElement, $word) === 0) {
+            $decoratedElement = $word . $left . $trimmedElement . $right;
+        } else {
+            $decoratedElement = $trimmedElement;
+        }
+
+        $decoratedElements[] = $decoratedElement;
+    }
+
+    return implode($separator, $decoratedElements);
+}
+
+// Пример использования
+$phpCode = <<<PHP
+<?php
+function state_a() {
+b(); 
+//d();
+}
+function b() {
+state_c();
+}
+function state_c() {
+// ...
+//}
+}
+// function d() {state_c();}
+state_a();
 PHP;
 
-    $result =  codePHP_2_Mermaid($phpCode, $functionName);
-    assert($result == 'state_a -- b --> state_c');
+$code = <<<PHP
+<?php
+function state_1()
+{
+    func_1();
+    func_2();
+}
 
-    $phpCode = <<<PHP
-function state_a() {b(z);}
-function b(z) {state_c();}
-function state_c() {// ...}
-PHP;
+function state_2()
+{
+    func_3();
+}
 
-    $result =  codePHP_2_Mermaid($phpCode, $functionName);
-    assert($result == 'state_a -- b --> state_c');
+function state_3()
+{
+    func_4();
+}
+
+function state_4()
+{
+    func_5();
+}
+
+function state_5()
+{
 
 }
 
-codePHP_2_Mermaid_Test();
+function func_1()
+{
+    state_2();
+}
+
+function func_2()
+{
+    state_3();
+}
+
+function func_3()
+{
+    state_4();
+}
+
+function func_4()
+{
+    state_4();
+}
+
+function func_5()
+{
+    state_5();
+}
+state_1();
+PHP;
+
+//$mermaidAST = ast2Mermaid(phpCode2AST($phpCode));
+$mermaidAST = mermaidElementsCircle(
+    ast2Mermaid(
+        phpCode2AST($code)),
+    'state',
+    '-->');
+echo $mermaidAST;
