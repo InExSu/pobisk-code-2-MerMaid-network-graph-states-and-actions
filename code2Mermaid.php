@@ -70,6 +70,7 @@ function mermaidElementsCircle(string $inputString, string $word = 'state', stri
                 if (strpos($line, $separator) !== false) {
 
                     $outputLines[] = mermaidStringElementDecor($line);
+
                 } else {
                     $outputLines[] = $line;
                 }
@@ -194,7 +195,5 @@ PHP;
 //$mermaidAST = ast2Mermaid(phpCode2AST($phpCode));
 $mermaidAST = mermaidElementsCircle(
     ast2Mermaid(
-        phpCode2AST($code)),
-    'state',
-    '-->');
+        phpCode2AST($code)));
 echo $mermaidAST;
