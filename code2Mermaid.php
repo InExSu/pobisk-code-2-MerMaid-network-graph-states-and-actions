@@ -4,21 +4,32 @@ require_once 'vendor/autoload.php';
 use PhpParser\Node\Stmt;
 use PhpParser\ParserFactory;
 
+//if (!isset($argv[1]))
+//    echo_Log_Exit("Не указан файл php");
+//if (!isset($argv[2]))
+//    $argv[2] = '';
+//aChain($argv[1], $argv[2]);
+
 /**
+ * @param string $fileSource
+ * @param string $fileDest
  * @return void
+ * @throws Exception
  */
-function aChain():void {
+function aChain(string $fileSource, string $fileDest = 'code2Mermaid.md'): void
+{
     file_put_contents(
-        'code2Mermaid.md',
+        $fileDest,
         '```mermaid' . PHP_EOL . mermaidElementsCircle(
             mermaidSplit(
                 generateMermaidCode(
                     phpCode2AST(
                         file_get_contents(
                             string2File(
-                                fileName2Code('file1.php'),
-                                'php.code')))))));
+                                fileName2Code($fileSource),
+                                __DIR__ . '/php.code')))))));
 }
+
 /**
  * Строку кода php в AST деревос синтаксическое абстрактное
  * @param string $phpCode
@@ -34,17 +45,17 @@ function phpCode2AST(string $phpCode): ?array
  * Mermaid элементы, начинающимся с $word сделать в кружках.
  *
  * @param string $inputString = 'anytext
- * state_1 --> func_1
- * state_1 --> func2
- * func_1 --> stateAnySymbols
- * func2 --> stateAnySymbols';
- * @param string $word = 'state';
- * @param string $separator = "-->";
+ *                            state_1 --> func_1
+ *                            state_1 --> func2
+ *                            func_1 --> stateAnySymbols
+ *                            func2 --> stateAnySymbols';
+ * @param string $word        = 'state';
+ * @param string $separator   = "-->";
  * @return string = 'anytext
- * state_1((state_1)) --> func_1
- * state_1 --> func2
- * func_1 --> stateAnySymbols((stateAnySymbols))
- * func2 --> stateAnySymbols';
+ *                            state_1((state_1)) --> func_1
+ *                            state_1 --> func2
+ *                            func_1 --> stateAnySymbols((stateAnySymbols))
+ *                            func2 --> stateAnySymbols';
  */
 function mermaidElementsCircle(string $inputString, string $word = 'state', string $separator = '-->'): string
 {
@@ -86,11 +97,11 @@ function startsWith(string $haystack, string $needle): bool
 /**
  * Mermaid строка - обрамляет элемент, если он начинается с $word
  *
- * @param string $string = 'state_1 --> func_1';
- * @param string $word = 'state'
+ * @param string $string    = 'state_1 --> func_1';
+ * @param string $word      = 'state'
  * @param string $separator = '-->'
- * @param string $left = '(('
- * @param string $right = '))'
+ * @param string $left      = '(('
+ * @param string $right     = '))'
  * @return string = 'state_1((state_1)) --> func_1';
  */
 function mermaidStringElementDecor(string $string,
@@ -169,10 +180,10 @@ function findFunctionCalls($stmts): array
 //file_put_contents('code2mermaid.md', '```mermaid' . PHP_EOL . $mermaid);
 
 /**
- * Расщепляет строку по признакам
+ * Расщепляет строки по признакам.
  *
- * @param string $string = "any text\nstate_1 --> func_1, word, hz\nstate_2 --> func_3''
- * @param string $arrows = ' --> '
+ * @param string $string    = "any text\nstate_1 --> func_1, word, hz\nstate_2 --> func_3''
+ * @param string $arrows    = ' --> '
  * @param string $separator = ','
  * @param string $delimiter = "\n"
  * @return string "any text\nstate_1 --> func_1\nstate_1 --> word\nstate_1 --> hz\nstate_2 --> func_3"
@@ -187,7 +198,8 @@ function mermaidSplit(string $string, string $arrows = ' --> ', string $separato
 
         if (count($parts) === 2) {
             $state = trim($parts[0]); // Первая часть - состояние (state)
-            $funcs = explode($separator, trim($parts[1])); // Вторая часть - функции (funcs), разбиваем их по указанному разделителю
+            $funcs = explode($separator,
+                             trim($parts[1])); // Вторая часть - функции (funcs), разбиваем их по указанному разделителю
 
             foreach ($funcs as $func) {
                 $result .= $state . $arrows . trim($func) . $delimiter; // Составляем новую строку, добавляя состояние и каждую функцию
@@ -202,52 +214,136 @@ function mermaidSplit(string $string, string $arrows = ' --> ', string $separato
 
 /**
  * Собирает содержимое файлов, в том числе по require.
- * Берёт содержимое файла $filePHP.
+ * Берёт содержимое файла $filePath.
  * Если в файле есть выражения include, include_once, require, require_once,
  * то собирает содержимое этих файлов.
  * Избегает зацикливания - один и тот же файл, второй раз пропускает.
+ * Делает проверку на существование файла.
  *
- * @param string $filePHP имя файла, с которого начать собирать содержимое файлов
+ * @param string $filePath
  * @return string содержимое файлов
+ * @throws Exception если файл не существует
  */
-function fileName2Code(string $filePHP): string
+function fileName2Code(string $filePath): string
 {
-    //TODO  продолжи тестирование
+    // Check if the file path is relative
+    if (!isAbsolutePath($filePath)) {
+        $currentDirectory = dirname($filePath);
+        $filePath = joinPath($currentDirectory, $filePath);
+    }
 
-    // Проверяем, существует ли файл
-    if (!file_exists($filePHP))
-        echo_Log_Exit(__FILE__ . ". !file_exists($filePHP)");
-
-    // Хранит уже включенные файлы
-    static $includedFiles = [];
-
-    // Проверяем, был ли файл уже включен ранее
-    if (in_array($filePHP, $includedFiles)) {
+    if (!file_exists($filePath)) {
         return '';
     }
 
-    // Добавляем текущий файл в список уже включенных
-    $includedFiles[] = $filePHP;
+    static $includedFiles = []; // Track included files
 
-    // Читаем содержимое исходного файла
-    $code = file_get_contents($filePHP);
-
-    // Поиск выражений include, include_once, require, require_once в исходном файле
-    $pattern = '/^(?:require_once|include|require|include_once)\s+["\']([^"\']+)["\'];/m';
-    preg_match_all($pattern, $code, $matches, PREG_SET_ORDER);
-
-    // Обрабатываем найденные выражения
-    foreach ($matches as $match) {
-        $includeFile = $matches[0][1];
-
-        // Рекурсивно вызываем функцию fileName2Code для собирания содержимого включаемых файлов
-        $includedCode = fileName2Code($includeFile);
-
-        // Заменяем выражение в исходном коде на собранное содержимое
-        $code = str_replace($match[0][0], $includedCode, $code);
+    if (in_array($filePath, $includedFiles)) {
+        return ''; // File has already been included, return empty string
     }
 
-    return $code;
+    $includedFiles[] = $filePath; // Add file to included files
+    $content = file_get_contents($filePath); // Read the content of the original file
+
+    $matches = filesIncludes($content);
+
+    foreach ($matches as $match) {
+
+        $pathRequire = $match['path'];
+
+        if (!isAbsolutePath($pathRequire))
+            if ($match['dirname'] === '.')
+                $pathRequire = joinPath(dirname($filePath), $pathRequire);
+
+        // Recursively call fileName2Code for each referenced file
+        $content .= fileName2Code($pathRequire);
+    }
+
+    return $content;
+}
+
+/**
+ * @param $content
+ * @return array
+ * @author michaelpopov
+ * @date   2023-06-05 23:27
+ */
+function filesIncludes($content): array
+{
+    // Search for all references to require and include
+    $pattern = '/(require(_once)?|include(_once)?)\s*([\'"])(.+?)\4;/';
+    preg_match_all($pattern, $content, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+
+    $includes = [];
+
+    $commentPattern = '/\/\/.*|\/\*.*\*\//';
+
+    foreach ($matches as $match) {
+        // TODO не ловит комментарии
+
+        $lineStartPos = strrpos(substr($content, 0, $match[0][1]), "\n") + 1;
+        $lineEndPos = strpos($content, "\n", $match[0][1]);
+        $line = substr($content, $lineStartPos, $lineEndPos - $lineStartPos);
+
+        // Check if the line is a comment
+        if (preg_match($commentPattern, $line)) {
+            continue;
+        }
+
+        $type = $match[1][0]; // require, require_once, include, include_once
+        $path = $match[5][0]; // path to the file
+
+        // Check if the path starts with __DIR__ and replace it with the actual directory path
+        if (strpos($path, '__DIR__') === 0) {
+            $path = str_replace('__DIR__', dirname(__FILE__), $path);
+        }
+
+        // Extract additional information from the path, if available
+        $info = pathinfo($path);
+        $dirname = $info['dirname']; // directory path
+        $basename = $info['basename']; // file name with extension
+        $filename = $info['filename']; // file name without extension
+        $extension = $info['extension'] ?? ''; // file extension (if available)
+
+        // Create an array with the extracted information
+        $include = [
+            'type' => $type,
+            'path' => $path,
+            'dirname' => $dirname,
+            'basename' => $basename,
+            'filename' => $filename,
+            'extension' => $extension
+        ];
+
+        $includes[] = $include;
+    }
+
+    return $includes;
+}
+
+/**
+ * @param $path
+ * @return bool
+ * @author michaelpopov
+ * @date   2023-06-05 23:02
+ */
+function isAbsolutePath($path): bool
+{
+    return $path[0] === '/' || preg_match('/^[A-Z]:\\\\/i', $path) === 1;
+}
+
+/**
+ * @param $directory
+ * @param $file
+ * @return string
+ * @author michaelpopov
+ * @date   2023-06-05 23:02
+ */
+function joinPath($directory, $file): string
+{
+    return rtrim($directory, DIRECTORY_SEPARATOR) .
+        DIRECTORY_SEPARATOR .
+        ltrim($file, DIRECTORY_SEPARATOR);
 }
 
 /**
@@ -268,6 +364,8 @@ function string2File(string $string, string $file): string
 }
 
 /**
+ * Показать, записать, выход.
+ *
  * @param string $message
  * @return void
  */

@@ -1,6 +1,9 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 require_once 'code2Mermaid.php';
+/**
+ * @return void
+ */
 function MermaidStringElementDecor_Test()
 {
     $testCases = [
@@ -54,11 +57,14 @@ CODE;
 
 /**
  * @return void
+ * @throws Exception
  */
 function fileName2Code_Test()
 {
+//    file_put_contents('from1file.code',
+//                      fileName2Code('/Users/michaelpopov/PhpstormProjects/Bitrix24-entity-operations/aTasks_IN_Work.php'));
     file_put_contents('from1file.code',
-        fileName2Code('/Users/michaelpopov/PhpstormProjects/Bitrix24-entity-operations/aTasks_IN_Work.php'));
+                      fileName2Code("/Users/michaelpopov/PhpstormProjects/pobisk-code-2-MerMaid-network-graph-states-and-actions/testFiles/file1.php"));
 }
 
 // Пример использования
@@ -134,6 +140,70 @@ function func_5()
 //state_1();
 PHP;
 
+/**
+ * @return void
+ * @throws Exception
+ */
+function aChain_Test()
+{
+    aChain(__DIR__ . '/testFiles/file1.php');
+}
+
+/**
+ * @return void
+ * @author michaelpopov
+ * @date   2023-06-05 23:36
+ */
+function filesIncludes_Test()
+{
+    // Test case 1
+    $content1 = '
+        <?php
+//        require "path/to/file.php";
+//        include_once \'path/to/another_file.php\';
+//        require_once "path/to/include.php";
+//        include "path/to/file_with_extension.html";
+        require_once __DIR__ . \'/file3.php\';
+        ';
+
+    $result1 = filesIncludes($content1);
+
+    echo "Test case 1:\n";
+    filesIncludes_TestCase($result1);
+
+    // Test case 2
+    $content2 = '
+        <?php
+        require_once "path/to/include.php";
+        ';
+
+    $result2 = filesIncludes($content2);
+
+    echo "Test case 2:\n";
+    filesIncludes_TestCase($result2);
+}
+
+/**
+ * @param $result1
+ * @author michaelpopov
+ * @date   2023-06-05 23:36
+ */
+function filesIncludes_TestCase($result1)
+{
+    foreach ($result1 as $include) {
+        echo "Type: {$include['type']}\n";
+        echo "Path: {$include['path']}\n";
+        echo "Directory: {$include['dirname']}\n";
+        echo "Filename with extension: {$include['basename']}\n";
+        echo "Filename without extension: {$include['filename']}\n";
+        echo "Extension: {$include['extension']}\n";
+        echo "--------\n";
+    }
+}
+
+// Run the test
+filesIncludes_Test();
+//aChain_Test();
 //regTest();
 //fileName2Code_Test();
 //MermaidStringElementDecor_Test();

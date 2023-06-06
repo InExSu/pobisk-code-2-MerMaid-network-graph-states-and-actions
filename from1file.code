@@ -1,0 +1,20 @@
+<?php
+
+require_once 'file2.php';
+
+/** @noinspection PhpUnused */
+/**
+ * @return void
+ */
+function state_1() {
+    f_2();
+}
+<?php
+
+require_once __DIR__ . '/file3.php';
+/**
+ * @return void
+ */
+function f_2(){
+    state_3();
+}
